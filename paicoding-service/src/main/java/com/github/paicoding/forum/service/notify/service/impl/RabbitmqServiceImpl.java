@@ -53,24 +53,19 @@ public void publishMsg(String exchange,
         // 1. 获取连接（try-with-resources 不适用，需手动归还）
         rabbitmqConnection = RabbitmqConnectionPool.getConnection();
         Connection connection = rabbitmqConnection.getConnection();
-
         // 2. 创建Channel并开启发布确认
         channel = connection.createChannel();
         channel.confirmSelect(); // 开启发布确认
-
         // 3. 声明交换机（幂等）
         channel.exchangeDeclare(exchange, exchangeType, true, false, null);
-
         // 4. 设置消息持久化属性
         AMQP.BasicProperties props = new AMQP.BasicProperties.Builder()
                 .deliveryMode(2) // 2=持久化，1=非持久化
                 .contentType("application/json")
                 .build();
-
         // 5. 发送消息
         channel.basicPublish(exchange, routingKey, props, message.getBytes());
         log.info("Publish msg: {}", message);
-
         // 6. 等待确认（同步确认，也可使用异步确认）
         if (!channel.waitForConfirms(5000)) {
             log.error("Msg publish confirm failed: {}", message);

@@ -80,7 +80,6 @@ public class UserFootServiceImpl implements UserFootService {
 
     /**
      * 文章/评论点赞、取消点赞、收藏、取消收藏
-     *
      * @param documentType    文档类型：博文 + 评论
      * @param documentId      文档id
      * @param authorId        作者
