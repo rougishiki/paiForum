@@ -3,14 +3,22 @@ paicoding:
   login:
     zsxq:
       api: https://wx.zsxq.com/connector/crm/identify_member.html
-      appId: 666
-      groupNumber: 666
-      secret: 666
+      appId: ${ZSXQ_APP_ID:666}
+      groupNumber: ${ZSXQ_GROUP_NUMBER:666}
+      secret: ${ZSXQ_SECRET:666}
       redirectUrl: https://paicoding.com/login/zsxq/callback
     wx:
       loginQrType: SUBSCRIPTION_ACCOUNT # SUBSCRIPTION_ACCOUNT 表示普通的公众号登录  SERVICE_ACCOUNT 表示服务号关注登录
-      appId: wx59x(使用公众号的appId)ffb8
-      appSecret: a7c4xb(使用公众号的appSecret)68c84
+      appId: ${WX_APP_ID:wx59xffb8}
+      appSecret: ${WX_APP_SECRET:a7c4x68c84}
       qrCodeImg: ${view.site.contactMeWxQrCode}
       qrCodeLogo: ${view.site.websiteLogoUrl}
       securityCheckToken: # 为空，表示不对微信回调的接口进行校验
+    github:
+      client:
+        id: ${GITHUB_CLIENT_ID:Ov23liLs3ZUtwFyoRuJ3}
+        secret: ${GITHUB_CLIENT_SECRET:}
+        redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:8080/oauth/github/callback}
+        retry:
+          max-times: 3          # 最大重试次数（默认 3）
+          interval-ms: 1000     # 初始重试间隔毫秒（默认 1000ms）

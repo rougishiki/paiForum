@@ -59,4 +59,15 @@ public interface LoginService {
      * @return
      */
     String loginByZsxq(UserZsxqLoginReq req);
+
+    /**
+     * 第三方账号登录（GitHub、Gitee等）
+     * @param thirdPartyId 第三方平台的用户ID
+     * @param platform 平台类型：github, gitee, wechat等
+     * @param username 用户名
+     * @param avatar 头像
+     * @param email 邮箱
+     * @return session
+     */
+    String loginByThirdParty(String thirdPartyId, String platform, String username, String avatar, String email);
 }

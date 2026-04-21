@@ -29,6 +29,9 @@ import java.util.Objects;
 @Slf4j
 @Component
 public class UserSessionHelper {
+    // Redis Key 前缀，用于分层管理
+    private static final String SESSION_KEY_PREFIX = "session:jwt:";
+    
     @Component
     @Data
     @ConfigurationProperties("paicoding.jwt")
@@ -67,12 +70,16 @@ public class UserSessionHelper {
 
         // 2.使用jwt生成的token时，后端可以不存储这个session信息, 完全依赖jwt的信息
         // 但是需要考虑到用户登出，需要主动失效这个token，而jwt本身无状态，所以再这里的redis做一个简单的token -> userId的缓存，用于双重判定
-        RedisClient.setStrWithExpire(token, String.valueOf(userId), jwtProperties.getExpire() / 1000);
+        // 添加前缀，方便Redis管理和区分
+        String redisKey = SESSION_KEY_PREFIX + token;
+        RedisClient.setStrWithExpire(redisKey, String.valueOf(userId), jwtProperties.getExpire() / 1000);
         return token;
     }
 
     public void removeSession(String session) {
-        RedisClient.del(session);
+        // 删除时需要加上前缀
+        String redisKey = SESSION_KEY_PREFIX + session;
+        RedisClient.del(redisKey);
     }
 
     /**
@@ -90,7 +97,8 @@ public class UserSessionHelper {
             String userId = String.valueOf(JsonUtil.toObj(pay, HashMap.class).get("u"));
 
             // 从redis中获取userId，解决用户登出，后台失效jwt token的问题
-            String user = RedisClient.getStr(session);
+            String redisKey = SESSION_KEY_PREFIX + session;
+            String user = RedisClient.getStr(redisKey);
             if (user == null || !Objects.equals(userId, user)) {
                 return null;
             }

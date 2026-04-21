@@ -42,6 +42,7 @@
         <sensitive.version>0.8.0</sensitive.version>
         <jwt.version>4.4.0</jwt.version>
         <fastexcel.version>1.0.0</fastexcel.version>
+        <justauth.version>1.16.6</justauth.version>
     </properties>
 
     <dependencyManagement>
@@ -164,6 +165,12 @@
                 <groupId>cn.idev.excel</groupId>
                 <artifactId>fastexcel</artifactId>
                 <version>${fastexcel.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>me.zhyd.oauth</groupId>
+                <artifactId>JustAuth</artifactId>
+                <version>${justauth.version}</version>
             </dependency>
 
         </dependencies>

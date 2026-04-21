@@ -22,6 +22,10 @@ public enum LoginTypeEnum {
      * 知识星球登录
      */
     ZSXQ(2),
+    /**
+     * 第三方账号登录（GitHub、Gitee等）
+     */
+    THIRD(3),
     ;
     private int type;
 }

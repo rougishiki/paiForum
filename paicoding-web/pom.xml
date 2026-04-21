@@ -92,6 +92,12 @@
             <artifactId>hutool-all</artifactId>
         </dependency>
 
+        <!-- 引入 JustAuth 第三方登录 -->
+        <dependency>
+            <groupId>me.zhyd.oauth</groupId>
+            <artifactId>JustAuth</artifactId>
+        </dependency>
+
         <!-- 引入 itextpdf 工具包 -->
         <dependency>
             <groupId>com.itextpdf</groupId>

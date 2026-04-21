@@ -78,7 +78,14 @@ public class RegisterServiceImpl implements RegisterService {
         // 2. 保存用户登录信息
         user = new UserDO();
         user.setUserName(loginReq.getUsername());
-        user.setPassword(userPwdEncoder.encPwd(loginReq.getPassword()));
+        
+        // 判断是否为第三方登录，第三方登录不设置密码
+        if (loginReq.getLoginType() != null && LoginTypeEnum.THIRD.getType() == loginReq.getLoginType()) {
+            user.setPassword("");  // 第三方登录不需要密码
+        } else {
+            user.setPassword(userPwdEncoder.encPwd(loginReq.getPassword()));
+        }
+        
         // 使用传入的thirdAccountId，如果没有则设为空字符串
         user.setThirdAccountId(loginReq.getThirdAccountId() != null ? loginReq.getThirdAccountId() : "");
         // 根据传入的loginType设置，如果没有则默认为用户名密码登录

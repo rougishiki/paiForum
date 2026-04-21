@@ -273,4 +273,39 @@ public class LoginServiceImpl implements LoginService {
         ReqInfoContext.getReqInfo().setUserId(userId);
         return userSessionHelper.genSession(userId);
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String loginByThirdParty(String thirdPartyId, String platform, String username, String avatar, String email) {
+        // 1. 查询是否已存在该第三方账号的用户
+        // 格式：platform_thirdPartyId
+        String bindKey = platform + "_" + thirdPartyId;
+        UserDO existUser = userDao.getByThirdAccountId(bindKey);//查询user表的第三方用户ID
+
+        // 2. 如果不存在，创建新用户
+        if (existUser == null) {
+            UserPwdLoginReq req = new UserPwdLoginReq()
+                    .setLoginType(LoginTypeEnum.THIRD.getType())
+                    .setThirdAccountId(bindKey)
+                    .setUsername("gh_" + username)
+                    .setPassword("") // 第三方登录不需要密码
+                    .setDisplayName(username);
+
+            // 保存头像
+            if (StringUtils.isNotBlank(avatar)) {
+                req.setAvatar(avatar);
+            }
+
+            Long userId = registerService.registerByUserNameAndPassword(req);
+            log.info("第三方登录创建用户成功: platform={}, thirdPartyId={}, username={}",
+                    platform, thirdPartyId, username);
+            return userSessionHelper.genSession(userId);
+        }
+
+        // 3. 如果已存在，直接登录
+        log.info("第三方登录用户: platform={}, thirdPartyId={}, userId={}",
+                platform, thirdPartyId, existUser.getId());
+        ReqInfoContext.getReqInfo().setUserId(existUser.getId());
+        return userSessionHelper.genSession(existUser.getId());
+    }
 }
