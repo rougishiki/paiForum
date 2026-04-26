@@ -127,7 +127,6 @@ public class GitHubLoginController {
                 log.error("生成 Session 失败");
                 return "redirect:/login?error=session_error";
             }
-    
         } catch (Exception e) {
             // 步骤10: 捕获异常，记录错误日志并重定向到登录页
             log.error("GitHub 登录异常", e);

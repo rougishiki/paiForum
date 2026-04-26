@@ -98,6 +98,13 @@
             <artifactId>JustAuth</artifactId>
         </dependency>
 
+        <!-- dotenv 支持，自动加载 .env 文件 -->
+        <dependency>
+            <groupId>io.github.cdimascio</groupId>
+            <artifactId>dotenv-java</artifactId>
+            <version>${dotenv.version}</version>
+        </dependency>
+
         <!-- 引入 itextpdf 工具包 -->
         <dependency>
             <groupId>com.itextpdf</groupId>
