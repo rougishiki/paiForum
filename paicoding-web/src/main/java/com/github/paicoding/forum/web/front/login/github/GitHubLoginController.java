@@ -78,62 +78,144 @@ public class GitHubLoginController {
     @GetMapping("/callback")
     public String callback(AuthCallback callback, HttpServletResponse response)  {
         try {
-            // 步骤1: 创建 GitHub 认证请求对象
+            // 步骤1: 验证配置参数
+            validateConfig();
+            
+            // 步骤2: 创建 GitHub 认证请求对象
             AuthRequest authRequest = getAuthRequest();
                 
-            // 步骤2: 执行 GitHub OAuth 登录，获取认证响应
-            AuthResponse authResponse = authRequest.login(callback);
+            // 步骤3: 执行 GitHub OAuth 登录（带重试机制）
+            AuthResponse authResponse = executeGitHubLoginWithRetry(authRequest, callback);
     
-            // 步骤3: 检查认证响应状态码，失败则重定向到登录页并携带错误信息
-            if (authResponse.getCode() != 2000) {
-                log.error("GitHub 登录失败: code={}, msg={}", authResponse.getCode(), authResponse.getMsg());
-                return "redirect:/login?error=api_error";
-            }
-    
-            // 步骤4: 提取响应数据并验证数据有效性
-            Object data = authResponse.getData();
-            if (data == null || !(data instanceof AuthUser)) {
-                log.error("GitHub 登录响应数据为空或格式错误");
-                return "redirect:/login?error=invalid_response";
-            }
-    
-            // 步骤5: 从认证用户对象中提取用户信息
-            AuthUser authUser = (AuthUser) data;
-            String githubId = authUser.getUuid();
-            String username = authUser.getUsername();
-            String avatar = authUser.getAvatar();
-            String email = authUser.getEmail();
-    
-            // 步骤6: 验证 GitHub 用户ID是否为空
-            if (StringUtils.isBlank(githubId)) {
-                log.error("GitHub 用户ID为空");
-                return "redirect:/login?error=invalid_user_data";
-            }
-    
-            // 步骤7: 记录登录成功日志
-            log.info("GitHub 登录成功: githubId={}, username={}, email={}", githubId, username, email);
-    
-            // 步骤8: 调用第三方登录服务，处理用户关联和 Session 生成
-            String session = loginService.loginByThirdParty(githubId, "github", username, avatar, email);
-    
-            // 步骤9: 根据 Session 生成结果进行相应处理
-            if (StringUtils.isNotBlank(session)) {
-                // 步骤9.1: Session 生成成功，将 Session ID 写入 Cookie
-                response.addCookie(SessionUtil.newCookie(LoginService.SESSION_KEY, session));
-                // 步骤9.2: 重定向到首页
-                return "redirect:/";
-            } else {
-                // 步骤9.3: Session 生成失败，记录错误并重定向到登录页
-                log.error("生成 Session 失败");
-                return "redirect:/login?error=session_error";
-            }
+            // 步骤4: 处理认证响应
+            return processAuthResponse(authResponse, response);
+        } catch (ConfigValidationException e) {
+            log.error("GitHub 登录配置验证失败: {}", e.getMessage());
+            return "redirect:/login?error=config_error";
+        } catch (GitHubLoginException e) {
+            log.error("GitHub 登录失败: {}", e.getMessage(), e);
+            return "redirect:/login?error=" + e.getErrorCode();
         } catch (Exception e) {
-            // 步骤10: 捕获异常，记录错误日志并重定向到登录页
-            log.error("GitHub 登录异常", e);
+            // 步骤10: 捕获其他异常，记录错误日志并重定向到登录页
+            log.error("GitHub 登录未知异常", e);
             return "redirect:/login?error=unknown";
         }
     }
 
+
+    /**
+     * 验证配置参数
+     */
+    private void validateConfig() throws ConfigValidationException {
+        if (StringUtils.isBlank(clientId)) {
+            throw new ConfigValidationException("GitHub Client ID 未配置");
+        }
+        if (StringUtils.isBlank(clientSecret)) {
+            throw new ConfigValidationException("GitHub Client Secret 未配置");
+        }
+        if (StringUtils.isBlank(redirectUri)) {
+            throw new ConfigValidationException("GitHub Redirect URI 未配置");
+        }
+        log.debug("GitHub OAuth 配置验证通过");
+    }
+
+    /**
+     * 执行 GitHub 登录（带重试机制）
+     */
+    private AuthResponse executeGitHubLoginWithRetry(AuthRequest authRequest, AuthCallback callback) 
+            throws GitHubLoginException {
+        int attempt = 0;
+        Exception lastException = null;
+        
+        while (attempt <= maxRetryTimes) {
+            try {
+                attempt++;
+                log.debug("尝试第 {} 次 GitHub 登录", attempt);
+                
+                AuthResponse authResponse = authRequest.login(callback);
+                
+                if (authResponse.getCode() == 2000) {
+                    log.debug("GitHub 登录成功，第 {} 次尝试", attempt);
+                    return authResponse;
+                }
+                
+                // 如果是认证相关的错误，不重试
+                if (isAuthError(authResponse.getCode())) {
+                    log.warn("GitHub 认证错误，不进行重试: code={}, msg={}", 
+                            authResponse.getCode(), authResponse.getMsg());
+                    throw new GitHubLoginException("auth_error", 
+                            "GitHub 认证失败: " + authResponse.getMsg());
+                }
+                
+                log.warn("GitHub 登录失败，第 {} 次尝试: code={}, msg={}", 
+                        attempt, authResponse.getCode(), authResponse.getMsg());
+                
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("GitHub 登录异常，第 {} 次尝试: {}", attempt, e.getMessage());
+            }
+            
+            // 如果不是最后一次尝试，等待重试
+            if (attempt <= maxRetryTimes) {
+                try {
+                    Thread.sleep(retryIntervalMs * attempt); // 指数退避
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new GitHubLoginException("retry_interrupted", "重试被中断");
+                }
+            }
+        }
+        
+        throw new GitHubLoginException("max_retries_exceeded", 
+                "GitHub 登录重试次数已达上限", lastException);
+    }
+    
+    /**
+     * 判断是否为认证错误（不需要重试）
+     */
+    private boolean isAuthError(int code) {
+        // 4000-4999 范围内的错误码通常表示认证相关错误
+        return code >= 4000 && code < 5000;
+    }
+    
+    /**
+     * 处理认证响应
+     */
+    private String processAuthResponse(AuthResponse authResponse, HttpServletResponse response) 
+            throws GitHubLoginException {
+        // 提取响应数据并验证数据有效性
+        Object data = authResponse.getData();
+        if (data == null || !(data instanceof AuthUser)) {
+            throw new GitHubLoginException("invalid_response", "GitHub 登录响应数据为空或格式错误");
+        }
+
+        // 从认证用户对象中提取用户信息
+        AuthUser authUser = (AuthUser) data;
+        String githubId = authUser.getUuid();
+        String username = authUser.getUsername();
+        String avatar = authUser.getAvatar();
+        String email = authUser.getEmail();
+
+        // 验证 GitHub 用户ID是否为空
+        if (StringUtils.isBlank(githubId)) {
+            throw new GitHubLoginException("invalid_user_data", "GitHub 用户ID为空");
+        }
+
+        // 记录登录成功日志
+        log.info("GitHub 登录成功: githubId={}, username={}, email={}", githubId, username, email);
+
+        // 调用第三方登录服务，处理用户关联和 Session 生成
+        String session = loginService.loginByThirdParty(githubId, "github", username, avatar, email);
+
+        // 根据 Session 生成结果进行相应处理
+        if (StringUtils.isNotBlank(session)) {
+            // Session 生成成功，将 Session ID 写入 Cookie
+            response.addCookie(SessionUtil.newCookie(LoginService.SESSION_KEY, session));
+            return "redirect:/";
+        } else {
+            throw new GitHubLoginException("session_error", "生成 Session 失败");
+        }
+    }
 
     /**
      * 创建 GitHub OAuth 请求对象
@@ -170,5 +252,35 @@ public class GitHubLoginController {
                 .redirectUri(redirectUri)        // 授权回调地址（必须与 GitHub 配置一致）
                 .httpConfig(httpConfigBuilder.build())  // HTTP 客户端配置（超时、代理等）
                 .build());
+    }
+    
+    /**
+     * 配置验证异常
+     */
+    private static class ConfigValidationException extends Exception {
+        public ConfigValidationException(String message) {
+            super(message);
+        }
+    }
+    
+    /**
+     * GitHub 登录异常
+     */
+    private static class GitHubLoginException extends Exception {
+        private final String errorCode;
+        
+        public GitHubLoginException(String errorCode, String message) {
+            super(message);
+            this.errorCode = errorCode;
+        }
+        
+        public GitHubLoginException(String errorCode, String message, Throwable cause) {
+            super(message, cause);
+            this.errorCode = errorCode;
+        }
+        
+        public String getErrorCode() {
+            return errorCode;
+        }
     }
 }
