@@ -66,13 +66,10 @@ public class ArticleRestController {
     private ArticleReadService articleService;
     @Autowired
     private ArticleWriteService articleWriteService;
-
     @Autowired
     private TemplateEngineHelper templateEngineHelper;
-
     @Autowired
     private ArticleRecommendService articleRecommendService;
-
     @Autowired
     private UserService userService;
 
@@ -100,13 +97,18 @@ public class ArticleRestController {
         }
 
         // 更新用户与文章的点赞/收藏状态
+        //void favorArticleComment(
+        //    DocumentTypeEnum documentType,  // 文档类型：文章 or 评论
+        //    Long documentId,                // 文档ID（文章ID或评论ID）
+        //    Long authorId,                  // 作者ID（被操作对象的作者）
+        //    Long userId,                    // 操作用户ID（当前登录用户）
+        //    OperateTypeEnum operateTypeEnum // 操作类型：点赞/取消点赞/收藏/取消收藏等
+        //)
         userFootService.favorArticleComment(DocumentTypeEnum.ARTICLE, articleId, article.getUserId(),
                 ReqInfoContext.getReqInfo().getUserId(),
                 operate);
         return ResVo.ok(true);
     }
-
-
 
 
 

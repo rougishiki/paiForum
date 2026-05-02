@@ -8,7 +8,6 @@ import com.github.paicoding.forum.api.model.vo.ResVo;
 import com.github.paicoding.forum.api.model.vo.user.dto.SimpleUserInfoDTO;
 import com.github.paicoding.forum.api.model.vo.user.dto.UserFootStatisticDTO;
 import com.github.paicoding.forum.core.common.CommonConstants;
-import com.github.paicoding.forum.core.util.JsonUtil;
 import com.github.paicoding.forum.service.article.service.ArticleReadService;
 import com.github.paicoding.forum.service.comment.repository.entity.CommentDO;
 import com.github.paicoding.forum.service.comment.service.CommentReadService;
@@ -17,7 +16,6 @@ import com.github.paicoding.forum.service.notify.service.RabbitmqService;
 import com.github.paicoding.forum.service.user.repository.dao.UserFootDao;
 import com.github.paicoding.forum.service.user.repository.entity.UserFootDO;
 import com.github.paicoding.forum.service.user.service.UserFootService;
-import com.rabbitmq.client.BuiltinExchangeType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -92,8 +90,11 @@ public class UserFootServiceImpl implements UserFootService {
         // fixme 解决方案：自旋等待的分布式锁 or 事务 + 悲观锁
         // fixme 考虑到这个足迹的准确性影响并不大，留待有缘人进行修正
 
-        // 查询是否有该足迹；有则更新，没有则插入
-        UserFootDO readUserFootDO = userFootDao.getByDocumentAndUserId(documentId, documentType.getCode(), userId);
+        // 查询是否有该足迹
+        UserFootDO readUserFootDO = userFootDao.getByDocumentAndUserId(
+                documentId,
+                documentType.getCode(),
+                userId);
         //用于标识本次操作是否触发了数据库的新增 / 更新，初始为 false（无变更）
         boolean dbChanged = false;
 
@@ -131,9 +132,8 @@ public class UserFootServiceImpl implements UserFootService {
         if (notifyType.equals(NotifyTypeEnum.PRAISE) && rabbitmqService.enabled()) {
             rabbitmqService.publishMsg(
                     CommonConstants.EXCHANGE_NAME_DIRECT,
-                    BuiltinExchangeType.DIRECT,
                     CommonConstants.QUEUE_KEY_PRAISE,
-                    JsonUtil.toStr(readUserFootDO));
+                    readUserFootDO);
         } else {
             MsgNotifyHelper.publish(notifyType, readUserFootDO);
         }

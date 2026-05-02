@@ -93,11 +93,10 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-        <!--  RabbitMQ  -->
+        <!--  RabbitMQ (Spring AMQP)  -->
         <dependency>
-            <groupId>com.rabbitmq</groupId>
-            <artifactId>amqp-client</artifactId>
-            <version>5.5.1</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
         <!--  将 Markdown 转换为 HTML  -->

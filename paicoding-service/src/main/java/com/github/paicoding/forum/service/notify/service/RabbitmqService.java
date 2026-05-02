@@ -1,47 +1,15 @@
 package com.github.paicoding.forum.service.notify.service;
 
-import com.rabbitmq.client.BuiltinExchangeType;
-
-import java.io.IOException;
-import java.util.concurrent.TimeoutException;
-
-/**
- * @author YiHui
- * @date 2022/9/3
- */
 public interface RabbitmqService {
 
     boolean enabled();
 
     /**
-     * 发布消息
+     * 发布消息到指定交换机
      *
-     * @param exchange
-     * @param exchangeType
-     * @param toutingKey
-     * @param message
-     * @throws IOException
-     * @throws TimeoutException
+     * @param exchange   交换机名
+     * @param routingKey 路由键
+     * @param message    消息体，由 MessageConverter 自动序列化
      */
-    void publishMsg(String exchange,
-                    BuiltinExchangeType exchangeType,
-                    String toutingKey,
-                    String message);
-
-
-    /**
-     * 消费消息
-     *
-     * @param exchange
-     * @param queue
-     * @param routingKey
-     * @throws IOException
-     * @throws TimeoutException
-     */
-    void consumerMsg(String exchange,
-                     String queue,
-                     String routingKey) throws IOException, TimeoutException;
-
-
-    void processConsumerMsg();
+    void publishMsg(String exchange, String routingKey, Object message);
 }
