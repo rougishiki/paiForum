@@ -87,8 +87,8 @@ public class RabbitmqPraiseConsumer {
             // 【企业规范】延迟重试（1s、3s、5s 阶梯延迟，避免雪崩）
             Thread.sleep(newRetryCount * 1000L);
 
-            // 复用生产者发送消息（统一开关、异常处理）
-            rabbitmqService.publishMsg(
+            // 重新发送消息（统一开关、异常处理）
+            rabbitTemplate.send(
                     RabbitMqConfig.EXCHANGE_NAME,
                     RabbitMqConfig.ROUTING_KEY,
                     originalMsg
