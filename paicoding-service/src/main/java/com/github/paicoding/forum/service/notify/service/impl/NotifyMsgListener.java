@@ -16,6 +16,7 @@ import com.github.paicoding.forum.service.comment.service.CommentReadService;
 import com.github.paicoding.forum.service.notify.repository.dao.NotifyMsgDao;
 import com.github.paicoding.forum.service.notify.repository.entity.NotifyMsgDO;
 import com.github.paicoding.forum.service.notify.service.NotifyService;
+import com.github.paicoding.forum.service.notify.service.RabbitmqService;
 import com.github.paicoding.forum.service.user.repository.entity.UserFootDO;
 import com.github.paicoding.forum.service.user.repository.entity.UserRelationDO;
 import com.github.paicoding.forum.service.user.service.UserService;
@@ -46,55 +47,77 @@ public class NotifyMsgListener<T> implements ApplicationListener<NotifyMsgEvent<
 
     private final UserService userService;
 
+    private final RabbitmqService rabbitmqService;
+
     public NotifyMsgListener(ArticleReadService articleReadService,
                              CommentReadService commentReadService,
                              NotifyService notifyService,
                              NotifyMsgDao notifyMsgDao,
-                             UserService userService) {
+                             UserService userService,
+                             RabbitmqService rabbitmqService) {
         this.articleReadService = articleReadService;
         this.commentReadService = commentReadService;
         this.notifyService = notifyService;
         this.notifyMsgDao = notifyMsgDao;
         this.userService = userService;
+        this.rabbitmqService = rabbitmqService;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public void onApplicationEvent(NotifyMsgEvent<T> msgEvent) {
-        switch (msgEvent.getNotifyType()) {
-            case COMMENT:
-                saveCommentNotify((NotifyMsgEvent<CommentDO>) msgEvent);
-                break;
-            case REPLY:
-                saveReplyNotify((NotifyMsgEvent<CommentDO>) msgEvent);
-                break;
-            case PRAISE:
-            case COLLECT:
-                saveArticleNotify((NotifyMsgEvent<UserFootDO>) msgEvent);
-                break;
-            case CANCEL_PRAISE:
-            case CANCEL_COLLECT:
-                removeArticleNotify((NotifyMsgEvent<UserFootDO>) msgEvent);
-                break;
-            case FOLLOW:
-                saveFollowNotify((NotifyMsgEvent<UserRelationDO>) msgEvent);
-                break;
-            case CANCEL_FOLLOW:
-                removeFollowNotify((NotifyMsgEvent<UserRelationDO>) msgEvent);
-                break;
-            case LOGIN:
-                // todo 用户登录，判断是否需要插入新的通知消息，暂时先不做
-                break;
-            case REGISTER:
-                // 首次注册，插入一个欢迎的消息
-                saveRegisterSystemNotify((Long) msgEvent.getContent());
-                break;
-            case PAYING:
-            case PAY:
-                // 文章支付回调/支付中的消息通知
-                savePayNotify((NotifyMsgEvent<ArticlePayRecordDO>) msgEvent);
-            default:
-                // todo 系统消息
+        if (rabbitmqService.enabled()) {
+            // MQ 开启：只处理留存轻量类型，核心通知由 MQ Consumer 负责
+            switch (msgEvent.getNotifyType()) {
+                case CANCEL_PRAISE:
+                case CANCEL_COLLECT:
+                    removeArticleNotify((NotifyMsgEvent<UserFootDO>) msgEvent);
+                    break;
+                case CANCEL_FOLLOW:
+                    removeFollowNotify((NotifyMsgEvent<UserRelationDO>) msgEvent);
+                    break;
+                case REGISTER:
+                    saveRegisterSystemNotify((Long) msgEvent.getContent());
+                    break;
+                default:
+                    // COMMENT / REPLY / PRAISE / COLLECT / FOLLOW / PAY → MQ 处理
+                    break;
+            }
+        } else {
+            // MQ 关闭：全量处理
+            switch (msgEvent.getNotifyType()) {
+                case COMMENT:
+                    saveCommentNotify((NotifyMsgEvent<CommentDO>) msgEvent);
+                    break;
+                case REPLY:
+                    saveReplyNotify((NotifyMsgEvent<CommentDO>) msgEvent);
+                    break;
+                case PRAISE:
+                case COLLECT:
+                    saveArticleNotify((NotifyMsgEvent<UserFootDO>) msgEvent);
+                    break;
+                case CANCEL_PRAISE:
+                case CANCEL_COLLECT:
+                    removeArticleNotify((NotifyMsgEvent<UserFootDO>) msgEvent);
+                    break;
+                case FOLLOW:
+                    saveFollowNotify((NotifyMsgEvent<UserRelationDO>) msgEvent);
+                    break;
+                case CANCEL_FOLLOW:
+                    removeFollowNotify((NotifyMsgEvent<UserRelationDO>) msgEvent);
+                    break;
+                case LOGIN:
+                    break;
+                case REGISTER:
+                    saveRegisterSystemNotify((Long) msgEvent.getContent());
+                    break;
+                case PAYING:
+                case PAY:
+                    savePayNotify((NotifyMsgEvent<ArticlePayRecordDO>) msgEvent);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 

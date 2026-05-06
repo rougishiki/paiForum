@@ -17,10 +17,13 @@ import com.github.paicoding.forum.core.util.id.IdUtil;
 import com.github.paicoding.forum.service.article.conveter.PayConverter;
 import com.github.paicoding.forum.service.article.repository.dao.ArticlePayDao;
 import com.github.paicoding.forum.service.article.repository.entity.ArticleDO;
+import com.github.paicoding.forum.api.model.vo.notify.NotifyMessage;
 import com.github.paicoding.forum.service.article.repository.entity.ArticlePayRecordDO;
 import com.github.paicoding.forum.service.article.service.ArticlePayService;
 import com.github.paicoding.forum.service.article.service.ArticleReadService;
+import com.github.paicoding.forum.service.notify.config.RabbitMqConfig;
 import com.github.paicoding.forum.service.notify.help.MsgNotifyHelper;
+import com.github.paicoding.forum.service.notify.service.RabbitmqService;
 import com.github.paicoding.forum.service.pay.PayServiceFactory;
 import com.github.paicoding.forum.service.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +59,9 @@ public class ArticlePayServiceImpl implements ArticlePayService {
 
     @Autowired
     private PayServiceFactory payServiceFactory;
+
+    @Autowired
+    private RabbitmqService rabbitmqService;
 
 
     @Override
@@ -224,15 +230,19 @@ public class ArticlePayServiceImpl implements ArticlePayService {
      * @param record
      */
     private void publishPayStatusChangeNotify(ArticlePayRecordDO record) {
-        // 支付状态变更的消息回调
+        NotifyTypeEnum notifyType = null;
         if (Objects.equals(record.getPayStatus(), PayStatusEnum.PAYING.getStatus())) {
-            // 更新支付状态为支付中
-            MsgNotifyHelper.publish(NotifyTypeEnum.PAYING, record);
+            notifyType = NotifyTypeEnum.PAYING;
         } else if (Objects.equals(record.getPayStatus(), PayStatusEnum.SUCCEED.getStatus())
                 || Objects.equals(record.getPayStatus(), PayStatusEnum.FAIL.getStatus())) {
-            // 支付成功or失败
-            MsgNotifyHelper.publish(NotifyTypeEnum.PAY, record);
+            notifyType = NotifyTypeEnum.PAY;
         }
+        if (notifyType == null) {
+            return;
+        }
+        // PAY / PAYING → RabbitMQ 支付队列（无统计更新需求）
+        rabbitmqService.publishMsg(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY_PAY,
+                new NotifyMessage<>(notifyType, record));
     }
 
     /**

@@ -20,18 +20,17 @@ public class RabbitmqServiceImpl implements RabbitmqService {
     }
 
     @Override
-    public void publishMsg(String exchange, String routingKey, Object message) {
-        // 先判断开关，再执行
+    public boolean publishMsg(String exchange, String routingKey, Object message) {
         if (!enabled()) {
-            log.warn("RabbitMQ开关关闭，消息未发送: {}", message);
-            return;
+            return false;
         }
-
         try {
             rabbitTemplate.convertAndSend(exchange, routingKey, message);
             log.info("消息发送成功 exchange:{} routingKey:{} message:{}", exchange, routingKey, message);
+            return true;
         } catch (Exception e) {
             log.error("消息发送失败，异常信息：", e);
+            return false;
         }
     }
 }

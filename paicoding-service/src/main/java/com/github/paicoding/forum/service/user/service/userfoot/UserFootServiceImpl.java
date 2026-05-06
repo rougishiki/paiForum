@@ -7,12 +7,14 @@ import com.github.paicoding.forum.api.model.vo.PageParam;
 import com.github.paicoding.forum.api.model.vo.ResVo;
 import com.github.paicoding.forum.api.model.vo.user.dto.SimpleUserInfoDTO;
 import com.github.paicoding.forum.api.model.vo.user.dto.UserFootStatisticDTO;
-import com.github.paicoding.forum.core.common.CommonConstants;
+import com.github.paicoding.forum.api.model.vo.notify.NotifyMessage;
 import com.github.paicoding.forum.service.article.service.ArticleReadService;
 import com.github.paicoding.forum.service.comment.repository.entity.CommentDO;
 import com.github.paicoding.forum.service.comment.service.CommentReadService;
+import com.github.paicoding.forum.service.notify.config.RabbitMqConfig;
 import com.github.paicoding.forum.service.notify.help.MsgNotifyHelper;
 import com.github.paicoding.forum.service.notify.service.RabbitmqService;
+import com.github.paicoding.forum.service.notify.service.impl.NotifyStatisticsService;
 import com.github.paicoding.forum.service.user.repository.dao.UserFootDao;
 import com.github.paicoding.forum.service.user.repository.entity.UserFootDO;
 import com.github.paicoding.forum.service.user.service.UserFootService;
@@ -43,6 +45,9 @@ public class UserFootServiceImpl implements UserFootService {
 
     @Autowired
     private RabbitmqService rabbitmqService;
+
+    @Autowired
+    private NotifyStatisticsService notifyStatisticsService;
 
     public UserFootServiceImpl(UserFootDao userFootDao) {
         this.userFootDao = userFootDao;
@@ -128,12 +133,12 @@ public class UserFootServiceImpl implements UserFootService {
             return;
         }
 
-        // 点赞消息走 RabbitMQ，其它走 Java 内置消息机制
-        if (notifyType.equals(NotifyTypeEnum.PRAISE) && rabbitmqService.enabled()) {
-            rabbitmqService.publishMsg(
-                    CommonConstants.EXCHANGE_NAME_DIRECT,
-                    CommonConstants.QUEUE_KEY_PRAISE,
-                    readUserFootDO);
+        // PRAISE / COLLECT → RabbitMQ 互动队列（成功则直接调统计）；CANCEL 类留 Spring Event
+        if ((notifyType == NotifyTypeEnum.PRAISE || notifyType == NotifyTypeEnum.COLLECT) && rabbitmqService.enabled()) {
+            if (rabbitmqService.publishMsg(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY_INTERACT,
+                    new NotifyMessage<>(notifyType, readUserFootDO))) {
+                notifyStatisticsService.updateStatistics(notifyType, readUserFootDO);
+            }
         } else {
             MsgNotifyHelper.publish(notifyType, readUserFootDO);
         }

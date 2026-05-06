@@ -19,6 +19,12 @@ public class CommonConstants {
     public static String EXCHANGE_NAME_DIRECT = "direct.exchange";
     public static String QUEUE_KEY_PRAISE = "praise";
     public static String QUEUE_NAME_PRAISE = "queue.praise";
+    public static String QUEUE_KEY_INTERACT = "interact";
+    public static String QUEUE_NAME_INTERACT = "queue.interact";
+    public static String QUEUE_KEY_PAY = "notify.pay";
+    public static String QUEUE_NAME_PAY = "queue.notify.pay";
+    public static String QUEUE_KEY_SOCIAL = "notify.social";
+    public static String QUEUE_NAME_SOCIAL = "queue.notify.social";
 
     /**
      * 分类类型

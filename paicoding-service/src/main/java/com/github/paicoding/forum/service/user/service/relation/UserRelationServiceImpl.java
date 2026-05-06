@@ -5,11 +5,15 @@ import com.github.paicoding.forum.api.model.enums.FollowStateEnum;
 import com.github.paicoding.forum.api.model.enums.NotifyTypeEnum;
 import com.github.paicoding.forum.api.model.vo.PageListVo;
 import com.github.paicoding.forum.api.model.vo.PageParam;
+import com.github.paicoding.forum.api.model.vo.notify.NotifyMessage;
 import com.github.paicoding.forum.api.model.vo.notify.NotifyMsgEvent;
 import com.github.paicoding.forum.api.model.vo.user.UserRelationReq;
 import com.github.paicoding.forum.api.model.vo.user.dto.FollowUserInfoDTO;
 import com.github.paicoding.forum.core.util.MapUtils;
 import com.github.paicoding.forum.core.util.SpringUtil;
+import com.github.paicoding.forum.service.notify.config.RabbitMqConfig;
+import com.github.paicoding.forum.service.notify.service.RabbitmqService;
+import com.github.paicoding.forum.service.notify.service.impl.NotifyStatisticsService;
 import com.github.paicoding.forum.service.user.converter.UserConverter;
 import com.github.paicoding.forum.service.user.repository.dao.UserRelationDao;
 import com.github.paicoding.forum.service.user.repository.entity.UserRelationDO;
@@ -31,6 +35,12 @@ import java.util.stream.Collectors;
 public class UserRelationServiceImpl implements UserRelationService {
     @Resource
     private UserRelationDao userRelationDao;
+
+    @Resource
+    private RabbitmqService rabbitmqService;
+
+    @Resource
+    private NotifyStatisticsService notifyStatisticsService;
 
 
     /**
@@ -110,15 +120,26 @@ public class UserRelationServiceImpl implements UserRelationService {
         if (userRelationDO == null) {
             userRelationDO = UserConverter.toDO(req);
             userRelationDao.save(userRelationDO);
-            // 发布关注事件
-            SpringUtil.publishEvent(new NotifyMsgEvent<>(this, NotifyTypeEnum.FOLLOW, userRelationDO));
+            // FOLLOW → RabbitMQ 社交通知（成功则直接调统计）
+            if (rabbitmqService.publishMsg(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY_SOCIAL,
+                    new NotifyMessage<>(NotifyTypeEnum.FOLLOW, userRelationDO))) {
+                notifyStatisticsService.updateStatistics(NotifyTypeEnum.FOLLOW, userRelationDO);
+            }
             return;
         }
 
         // 将是否关注状态重置
         userRelationDO.setFollowState(req.getFollowed() ? FollowStateEnum.FOLLOW.getCode() : FollowStateEnum.CANCEL_FOLLOW.getCode());
         userRelationDao.updateById(userRelationDO);
-        // 发布关注、取消关注事件
-        SpringUtil.publishEvent(new NotifyMsgEvent<>(this, req.getFollowed() ? NotifyTypeEnum.FOLLOW : NotifyTypeEnum.CANCEL_FOLLOW, userRelationDO));
+        // FOLLOW → RabbitMQ，CANCEL_FOLLOW → Spring Event
+        NotifyTypeEnum type = req.getFollowed() ? NotifyTypeEnum.FOLLOW : NotifyTypeEnum.CANCEL_FOLLOW;
+        if (type == NotifyTypeEnum.FOLLOW) {
+            if (rabbitmqService.publishMsg(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY_SOCIAL,
+                    new NotifyMessage<>(NotifyTypeEnum.FOLLOW, userRelationDO))) {
+                notifyStatisticsService.updateStatistics(NotifyTypeEnum.FOLLOW, userRelationDO);
+            }
+        } else {
+            SpringUtil.publishEvent(new NotifyMsgEvent<>(this, NotifyTypeEnum.CANCEL_FOLLOW, userRelationDO));
+        }
     }
 }

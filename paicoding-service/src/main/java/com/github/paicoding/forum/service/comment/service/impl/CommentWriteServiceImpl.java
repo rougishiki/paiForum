@@ -7,6 +7,7 @@ import com.github.paicoding.forum.api.model.exception.ExceptionUtil;
 import com.github.paicoding.forum.api.model.vo.comment.CommentSaveReq;
 import com.github.paicoding.forum.api.model.vo.comment.dto.HighlightDto;
 import com.github.paicoding.forum.api.model.vo.constants.StatusEnum;
+import com.github.paicoding.forum.api.model.vo.notify.NotifyMessage;
 import com.github.paicoding.forum.api.model.vo.notify.NotifyMsgEvent;
 import com.github.paicoding.forum.core.util.JsonUtil;
 import com.github.paicoding.forum.core.util.NumUtil;
@@ -18,6 +19,9 @@ import com.github.paicoding.forum.service.comment.converter.CommentConverter;
 import com.github.paicoding.forum.service.comment.repository.dao.CommentDao;
 import com.github.paicoding.forum.service.comment.repository.entity.CommentDO;
 import com.github.paicoding.forum.service.comment.service.CommentWriteService;
+import com.github.paicoding.forum.service.notify.config.RabbitMqConfig;
+import com.github.paicoding.forum.service.notify.service.RabbitmqService;
+import com.github.paicoding.forum.service.notify.service.impl.NotifyStatisticsService;
 import com.github.paicoding.forum.service.user.service.UserFootService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -49,6 +53,12 @@ public class CommentWriteServiceImpl implements CommentWriteService {
     private UserFootService userFootWriteService;
     @Autowired
     private AiBots aiBots;
+
+    @Autowired
+    private RabbitmqService rabbitmqService;
+
+    @Autowired
+    private NotifyStatisticsService notifyStatisticsService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -85,11 +95,16 @@ public class CommentWriteServiceImpl implements CommentWriteService {
         // 3. 触发杠精机器人
         this.aiBotTrigger(commentDO, parentComment);
 
-        // 4. 发布添加/回复评论事件
-        SpringUtil.publishEvent(new NotifyMsgEvent<>(this, NotifyTypeEnum.COMMENT, commentDO));
+        // 4. COMMENT / REPLY → RabbitMQ，统计直接调用
+        if (rabbitmqService.publishMsg(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY_SOCIAL,
+                new NotifyMessage<>(NotifyTypeEnum.COMMENT, commentDO))) {
+            notifyStatisticsService.updateStatistics(NotifyTypeEnum.COMMENT, commentDO);
+        }
         if (NumUtil.upZero(parentUser)) {
-            // 评论回复事件
-            SpringUtil.publishEvent(new NotifyMsgEvent<>(this, NotifyTypeEnum.REPLY, commentDO));
+            if (rabbitmqService.publishMsg(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY_SOCIAL,
+                    new NotifyMessage<>(NotifyTypeEnum.REPLY, commentDO))) {
+                notifyStatisticsService.updateStatistics(NotifyTypeEnum.REPLY, commentDO);
+            }
         }
         return commentDO;
     }
