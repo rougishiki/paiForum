@@ -19,6 +19,7 @@ import com.github.paicoding.forum.service.user.repository.dao.UserFootDao;
 import com.github.paicoding.forum.service.user.repository.entity.UserFootDO;
 import com.github.paicoding.forum.service.user.service.UserFootService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -46,6 +47,7 @@ public class UserFootServiceImpl implements UserFootService {
     @Autowired
     private RabbitmqService rabbitmqService;
 
+    @Lazy
     @Autowired
     private NotifyStatisticsService notifyStatisticsService;
 

@@ -18,6 +18,8 @@ import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
 import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.servlet.HandlerExceptionResolver;
@@ -39,6 +41,13 @@ import java.util.List;
 @EnableScheduling
 @EnableCaching
 @ServletComponentScan
+@ComponentScan(
+    basePackages = "com.github.paicoding.forum",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = "com\\.github\\.paicoding\\.forum\\.web\\.javabetter\\..*"
+    )
+)
 @SpringBootApplication
 public class QuickForumApplication implements WebMvcConfigurer, ApplicationRunner {
     @Value("${server.port:8080}")
